@@ -1,0 +1,2 @@
+E:\Projects\OpenGL\Projects\FlappyCube\x64\Debug\FlappyCube.exe
+E:\Projects\OpenGL\Projects\FlappyCube\x64\Debug\FlappyCube.pdb
