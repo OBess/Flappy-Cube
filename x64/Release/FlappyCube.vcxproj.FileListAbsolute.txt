@@ -1,1 +1,0 @@
-E:\Projects\OpenGL\Projects\FlappyCube\x64\Release\FlappyCube.exe

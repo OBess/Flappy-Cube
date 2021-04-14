@@ -17,8 +17,9 @@
 class Shader
 {
 public:
-	explicit Shader(const std::string& vertexShader, const std::string& fragmentShader);
-	explicit Shader(const GLchar* vertexPath, const GLchar* fragmentPath);
+	// Some Subscribe
+	Shader(const std::string& vertexShader, const std::string& fragmentShader);
+	Shader(const char* vertexPath, const char* fragmentPath);
 	GLuint getID() const;
 
 	void Use();

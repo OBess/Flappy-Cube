@@ -13,11 +13,13 @@
 #include <GLFW/glfw3.h>
 #include <GLM/vec3.hpp>
 #include <GLM/geometric.hpp>
+#include <SOIL/SOIL.h>
 
 // Custom
 #include "Shader.hpp"
 #include "Window.hpp"
 #include "Collider.hpp"
+#include "Texture.hpp"
 
 // Defines
 #define MAJOR 3
@@ -28,7 +30,7 @@ static bool gone = false;
 static glm::vec3 temp_maxY(0), velocity(0), velocityUp(0, 0.05f, 0);
 static glm::vec3 cube_pos(0);
 static glm::vec3 acceleration_velocity(0, 0.0005f, 0);
-static glm::vec3 acceleration(0, 0.2f, 0);
+static glm::vec3 acceleration(0, 4.05f, 0);
 static double acceleration_time = 0.00001f;
 static double stime = 0.01f;
 static bool clicked = false;
@@ -63,38 +65,55 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 static const std::string cube_frag = R"(
 #version 330
 
+in vec2 txtrCoord;
+
 out vec4 color;
+
+uniform sampler2D txtr;
 
 void main()
 {
-	color = vec4(0.521569f, 1.0f, 0.968627f, 1.0f);
+	color = texture(txtr, txtrCoord);
 }
 )";
 static const std::string cube_vs = R"(
 #version 330
 
 layout (location = 0) in vec3 position;
+layout (location = 1) in vec2 textureCoord;
+
+out vec2 txtrCoord;
+
 uniform vec3 newPos;
 
 void main()
 {
 	gl_Position = vec4(position + newPos, 1.0f);
+	
+	txtrCoord = textureCoord;
 }
 )";
 static const std::string tube_frag = R"(
 #version 330
 
+in vec2 txtrCoord;
+
 out vec4 color;
+
+uniform sampler2D txtr;
 
 void main()
 {
-	color = vec4(0.8f, 0.1f, 0.2f, 1.0f);
+	color = texture(txtr, txtrCoord);
 }
 )";
 static const std::string tubeDOWN_vs = R"(
 #version 330
 
 layout (location = 0) in vec3 pos;
+layout (location = 1) in vec2 textureCoord;
+
+out vec2 txtrCoord;
 
 uniform vec2 offset;
 
@@ -102,18 +121,55 @@ void main()
 {
 	vec2 oldPos = vec2(pos.x + offset.x, pos.y + offset.y);
 	gl_Position = vec4(mat2(1, 0, 0, -1) * oldPos, pos.z, 1.0f);
+
+	txtrCoord = textureCoord;
 }
 )";
 static const std::string tubeUP_vs = R"(
 #version 330
 
 layout (location = 0) in vec3 pos;
+layout (location = 1) in vec2 textureCoord;
+
+out vec2 txtrCoord;
 
 uniform vec2 offset;
 
 void main()
 {
 	gl_Position = vec4(pos.x + offset.x, pos.y + offset.y, pos.z, 1.0f);
+
+	txtrCoord = textureCoord;
+}
+)";
+
+static const std::string skybox_frag = R"(
+#version 330
+
+in vec2 txtrCoord;
+
+out vec4 color;
+
+uniform sampler2D txtr;
+
+void main()
+{
+	color = texture(txtr, txtrCoord);
+}
+)";
+static const std::string skybox_vs = R"(
+#version 330
+
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec2 textureCoord;
+
+out vec2 txtrCoord;
+
+void main()
+{
+	gl_Position = vec4(position, 1.0f);
+	
+	txtrCoord = textureCoord;
 }
 )";
 
@@ -124,7 +180,7 @@ void main()
 
 int main()
 {
-	std::cout << "Game: Flappy Cube\n\tAuthor: Sushchenko Dmytro\n\tVersion: 1.0\n\tStart of creation: 05.04.2021\n\tEnd of creation: 08.04.2021\n";
+	std::cout << "Game: Flappy Cube\n\tAuthor: Sushchenko Dmytro\n\tVersion: 2.0\n\tStart of creation: 14.04.2021\n\tEnd of creation: 14.04.2021\n";
 	initGLFW();
 	start();
 
@@ -182,23 +238,37 @@ void start()
 	Shader tubeUP(tubeUP_vs, tube_frag);
 	Shader tubeDOWN(tubeDOWN_vs, tube_frag);
 	Shader cube(cube_vs, cube_frag);
+	Shader skyBoxSh(skybox_vs, skybox_frag);
+
+	// SkyBox
+	GLfloat skyBox[] = {
+		-1, 1, 0, 0, 0,
+		 1, 1, 0, 1, 0,
+		 1, -1, 0, 1, 1,
+		-1, -1, 0, 0, 1
+	};
+
+	GLuint skyBox_indexes[] = {
+		0, 1, 2,
+		0, 2, 3
+	};
 
 	// Vertices
 	GLfloat vertices[] = {
-		map(115, {0, 300}, {-1, 1}), map(1000, {0, 500}, {-1, 1}), 0,
-		map(115, {0, 300}, {-1, 1}), map(350, {0, 500}, {-1, 1}), 0,
-		map(165, {0, 300}, {-1, 1}), map(350, {0, 500}, {-1, 1}), 0,
-		map(165, {0, 300}, {-1, 1}), map(1000, {0, 500}, {-1, 1}), 0,
+		map(115, {0, 300}, {-1, 1}), map(1000, {0, 500}, {-1, 1}), 0, 1.0f, 0.5f,
+		map(115, {0, 300}, {-1, 1}), map(350, {0, 500}, {-1, 1}), 0, 1.0f, 0.0f,
+		map(165, {0, 300}, {-1, 1}), map(350, {0, 500}, {-1, 1}), 0, 0.0f, 0.0f,
+		map(165, {0, 300}, {-1, 1}), map(1000, {0, 500}, {-1, 1}), 0, 0.0f, 0.5f,
 
-		map(105, {0, 300}, {-1, 1}), map(350, {0, 500}, {-1, 1}), 0,
-		map(175, {0, 300}, {-1, 1}), map(350, {0, 500}, {-1, 1}), 0,
-		map(175, {0, 300}, {-1, 1}), map(320, {0, 500}, {-1, 1}), 0,
-		map(105, {0, 300}, {-1, 1}), map(320, {0, 500}, {-1, 1}), 0,
+		map(105, {0, 300}, {-1, 1}), map(350, {0, 500}, {-1, 1}), 0, 1.0f, 1.0f,
+		map(175, {0, 300}, {-1, 1}), map(350, {0, 500}, {-1, 1}), 0, 1.0f, 0.0f,
+		map(175, {0, 300}, {-1, 1}), map(320, {0, 500}, {-1, 1}), 0, 0.0f, 0.0f,
+		map(105, {0, 300}, {-1, 1}), map(320, {0, 500}, {-1, 1}), 0, 0.0f, 1.0f,
 
-		map(30, {0, 300}, {-1, 1}), map(250, {0, 500}, {-1, 1}), 0,
-		map(30, {0, 300}, {-1, 1}), map(285, {0, 500}, {-1, 1}), 0,
-		map(60, {0, 300}, {-1, 1}), map(285, {0, 500}, {-1, 1}), 0,
-		map(60, {0, 300}, {-1, 1}), map(250, {0, 500}, {-1, 1}), 0
+		map(30, {0, 300}, {-1, 1}), map(250, {0, 500}, {-1, 1}), 0, 1.0f, 1.0f,
+		map(30, {0, 300}, {-1, 1}), map(285, {0, 500}, {-1, 1}), 0, 1.0f, 0.0f,
+		map(60, {0, 300}, {-1, 1}), map(285, {0, 500}, {-1, 1}), 0, 0.0f, 0.0f,
+		map(60, {0, 300}, {-1, 1}), map(250, {0, 500}, {-1, 1}), 0, 0.0f, 1.0f
 	};
 
 	//		Tube
@@ -210,17 +280,15 @@ void start()
 	};
 	//		Cube
 	GLuint indexesCube[] = {
-		8, 9, 10,
-		8, 10, 11
-	};
-	//		Check Box
-	GLuint indexesCheckBox[] = {
-		12, 13, 14,
-		12, 14, 15
+		0, 1, 2,
+		0, 2, 3
 	};
 
+	// Load textures
+	Texture tubeTxtr("src/textures/wall.png", SOIL_LOAD_RGBA), birdeTxtr("src/textures/bird.jpg"), skybox("src/textures/sky_box.png", SOIL_LOAD_RGBA);
+
 	// Vertex Buffer Objects and Vertex Array Objects
-	GLuint VBO, VAO, IBO, VBOc, VAOc, IBOc;
+	GLuint VBO, VAO, IBO, VBOc, VAOc, IBOc, VBOSkyBox, VAOSkyBox, IBOSkyBox;
 	glGenBuffers(1, &VBO);
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &IBO);
@@ -229,14 +297,20 @@ void start()
 	glGenVertexArrays(1, &VAOc);
 	glGenBuffers(1, &IBOc);
 
+	glGenBuffers(1, &VBOSkyBox);
+	glGenVertexArrays(1, &VAOSkyBox);
+	glGenBuffers(1, &IBOSkyBox);
+
 	// Setting VAO
 	glBindVertexArray(VAO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexesTubeVertices), indexesTubeVertices, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GL_FLOAT), (GLvoid*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GL_FLOAT), (GLvoid*)0);
 	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GL_FLOAT), (GLvoid*)(3 * sizeof(GLfloat)));
+	glEnableVertexAttribArray(1);
 	glBindVertexArray(0);
 
 	glBindVertexArray(VAOc);
@@ -244,8 +318,21 @@ void start()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOc);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexesCube), indexesCube, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GL_FLOAT), (GLvoid*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GL_FLOAT), (GLvoid*)(40 * sizeof(GLfloat)));
 	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GL_FLOAT), (GLvoid*)(43 * sizeof(GLfloat)));
+	glEnableVertexAttribArray(1);
+	glBindVertexArray(0);
+
+	glBindVertexArray(VAOSkyBox);
+	glBindBuffer(GL_ARRAY_BUFFER, VBOSkyBox);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(skyBox), skyBox, GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBOSkyBox);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(skyBox_indexes), skyBox_indexes, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GL_FLOAT), (GLvoid*)0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GL_FLOAT), (GLvoid*)(3 * sizeof(GLfloat)));
+	glEnableVertexAttribArray(1);
 	glBindVertexArray(0);
 
 	// Getting uniform vars
@@ -253,6 +340,10 @@ void start()
 	GLuint loc_offsetDOWN = glGetUniformLocation(tubeDOWN.getID(), "offset");
 	GLuint loc_color = glGetUniformLocation(tubeUP.getID(), "newColor");
 	GLuint loc_newPos = glGetUniformLocation(cube.getID(), "newPos");
+	GLuint loc_tubeTextrUp = glGetUniformLocation(tubeUP.getID(), "txtr");
+	GLuint loc_tubeTextrDown = glGetUniformLocation(tubeDOWN.getID(), "txtr");
+	GLuint loc_birdTextr = glGetUniformLocation(cube.getID(), "txtr");
+	GLuint loc_skyBoxTextr = glGetUniformLocation(skyBoxSh.getID(), "txtr");
 
 	// Setup random
 	srand(static_cast <unsigned> (time(0)));
@@ -275,7 +366,7 @@ void start()
 		colliders.push_back({ start_from + off_between * i - 33.0f, map(temp_y, {-1, 1}, {0, 500}) - ofYd - height, 5, height });
 	}
 
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	int count_i = 0;
 	while (!glfwWindowShouldClose(window.getWindow()))
 	{
@@ -283,15 +374,33 @@ void start()
 		glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
+		// SkyBoxs
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, skybox.getID());
+		glUniform1i(loc_skyBoxTextr, 0);
+
+		skyBoxSh.Use();
+		glBindVertexArray(VAOSkyBox);
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		glBindVertexArray(0);
+
 		// Tubes
 		count_i = 0;
 		for (auto& i : offsets)
 		{
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, tubeTxtr.getID());
+			glUniform1i(loc_tubeTextrUp, 0);
+
 			tubeUP.Use();
 			glBindVertexArray(VAO);
 			glUniform2f(loc_offsetUP, map(i.first, { 0, 300 }, { -1, 1 }), i.second);
 			glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
 			glBindVertexArray(0);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, tubeTxtr.getID());
+			glUniform1i(loc_tubeTextrDown, 0);
 
 			tubeDOWN.Use();
 			glBindVertexArray(VAO);
@@ -328,6 +437,10 @@ void start()
 		}
 
 		// Cube
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, birdeTxtr.getID());
+		glUniform1i(loc_birdTextr, 0);
+
 		cube.Use();
 		glBindVertexArray(VAOc);
 		glUniform3f(loc_newPos, cube_pos.x, cube_pos.y, cube_pos.z);
@@ -437,10 +550,4 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		clicked = true;
 		temp_maxY = (cube_pos + acceleration);
 	}
-	if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
 }

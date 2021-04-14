@@ -1,8 +1,12 @@
 #version 330
 
+in vec2 txtrCoord;
+
 out vec4 color;
+
+uniform sampler2D txtr;
 
 void main()
 {
-	color = vec4(0.521569f, 1.0f, 0.968627f, 1.0f);
+	color = texture(txtr, txtrCoord);
 }
